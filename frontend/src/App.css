@@ -1,169 +1,183 @@
-.breadboard-container {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  font-family: sans-serif;
-  background-color: #242424;
-  color: white;
-  min-height: 100vh;
-  padding: 20px;
+body { 
+  margin: 0; 
+  font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; 
+  background-color: #0b1320; 
+  color: #e2e8f0; 
 }
 
-.breadboard {
-  background-color: #f0f0d8; /* Classic breadboard off-white */
-  padding: 20px 40px;
-  border-radius: 10px;
-  box-shadow: 0 10px 20px rgba(0,0,0,0.5);
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
+.app-container { 
+  display: flex; 
+  height: 100vh; 
+  overflow: hidden; 
 }
 
-.power-rails, .terminal-strip {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
+/* SIDEBAR STYLES */
+.sidebar { 
+  width: 320px; 
+  background-color: #111e30; 
+  border-right: 1px solid #1e293b; 
+  padding: 25px; 
+  display: flex; 
+  flex-direction: column; 
+  gap: 20px; 
+  box-shadow: 4px 0 15px rgba(0,0,0,0.5); 
+  z-index: 20; 
 }
 
-.rail, .terminal-row {
-  display: flex;
-  gap: 8px;
+.sidebar h2 { 
+  margin: 0; 
+  color: #38bdf8; 
+  font-size: 1.5rem; 
+  letter-spacing: 1px; 
+  text-transform: uppercase; 
 }
 
-.hole {
-  width: 12px;
-  height: 12px;
-  background-color: #333;
-  border-radius: 2px;
-  box-shadow: inset 0 2px 4px rgba(0,0,0,0.8);
-  cursor: pointer;
+.sidebar h3 { 
+  font-size: 1rem; 
+  color: #94a3b8; 
+  border-bottom: 1px solid #334155; 
+  padding-bottom: 5px; 
+  margin-bottom: 10px; 
 }
 
-.hole:hover {
-  background-color: #666; /* Highlight when hovering */
+.sys-status { 
+  background: #0f172a; 
+  padding: 15px; 
+  border-radius: 8px; 
+  border: 1px solid #1e293b; 
+  font-family: monospace; 
+  min-height: 60px; 
 }
 
-/* Red and Blue lines for power rails */
-.power-rails {
-  position: relative;
-}
-.rail.positive { border-top: 2px solid red; padding-top: 4px; }
-.rail.negative { border-top: 2px solid blue; padding-top: 4px; }
-
-.ravine {
-  height: 15px;
-  background-color: #d0d0b8;
-  border-radius: 4px;
-  box-shadow: inset 0 2px 5px rgba(0,0,0,0.2);
-  margin: 5px 0;
+.log-text { 
+  margin: 0; 
+  color: #4ade80; 
+  font-size: 0.9rem; 
 }
 
-.divider {
-  height: 2px;
-  background-color: #ccc;
-  margin: 5px 0;
+.warning-text { 
+  margin: 10px 0 0 0; 
+  padding: 8px; 
+  border-radius: 4px; 
+  font-weight: bold; 
+  font-size: 0.85rem; 
 }
 
-.status-bar {
-  background-color: #1a1a1a;
-  padding: 10px 20px;
-  border-radius: 8px;
-  margin-bottom: 20px;
-  color: #00ff00; /* Hacker green for our console! */
-  font-family: monospace;
-  min-width: 300px;
-  text-align: center;
+.warning-text.danger { 
+  background: rgba(239, 68, 68, 0.2); 
+  color: #f87171; 
+  border: 1px solid #ef4444; 
 }
 
-.smsg {
-  background-color: #1a1a1a;
-  padding: 10px 20px;
-  border-radius: 8px;
-  margin-bottom: 20px;
-  color: #00ff00; /* Hacker green for our console! */
-  font-family: monospace;
-  min-width: 300px;
-  text-align: center;
+.warning-text.safe { 
+  color: #38bdf8; 
 }
 
-/* Highlight the first clicked hole */
-.hole.active {
-  background-color: #ffaa00;
-  box-shadow: 0 0 8px #ffaa00;
+.toolbox, .actions { 
+  display: flex; 
+  flex-direction: column; 
+  gap: 10px; 
 }
 
-.wire-list {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 10px;
-  justify-content: center;
-  margin-top: 10px;
+.tool-btn, .action-btn { 
+  padding: 12px; 
+  border: none; 
+  border-radius: 6px; 
+  cursor: pointer; 
+  font-weight: bold; 
+  font-size: 0.95rem; 
+  transition: all 0.2s; 
+  text-align: left; 
 }
 
-.wire-badge {
-  background-color: #333;
-  padding: 4px 8px;
-  border-radius: 4px;
-  font-size: 0.85em;
-  border: 1px solid #555;
+.tool-btn { 
+  background-color: #1e293b; 
+  color: #cbd5e1; 
+  border: 1px solid #334155; 
 }
 
-/* Container for the board and SVG overlay */
-.board-wrapper {
-  position: relative;
-  display: inline-block; /* Hugs the size of the breadboard */
+.tool-btn:hover { background-color: #334155; }
+.tool-btn.active-wire { background-color: #0ea5e9; color: white; border-color: #38bdf8; }
+.tool-btn.active-res { background-color: #eab308; color: black; border-color: #fde047; }
+.tool-btn.active-multi { background-color: #d946ef; color: white; border-color: #f0abfc; }
+
+.action-btn.primary { background-color: #3b82f6; color: white; text-align: center; }
+.action-btn.secondary { background-color: #475569; color: white; text-align: center; }
+.action-btn.danger { background-color: #dc2626; color: white; text-align: center; margin-top: 15px; }
+
+/* WORKSPACE & BLUEPRINT BOARD */
+.workspace { 
+  flex: 1; 
+  display: flex; 
+  justify-content: center; 
+  align-items: center; 
+  background-image: linear-gradient(#1e293b 1px, transparent 1px), linear-gradient(90deg, #1e293b 1px, transparent 1px); 
+  background-size: 30px 30px; 
+  position: relative; 
 }
 
-/* The SVG canvas that sits transparently over the holes */
-.svg-overlay {
-  position: absolute;
-  top: 0;
-  left: 0;
-  width: 100%;
-  height: 100%;
-  pointer-events: none; /* Let clicks pass through the SVG to the holes below */
-  z-index: 10;
+.board-wrapper { 
+  position: relative; 
+  display: inline-block; 
+  padding: 20px; 
+  background: rgba(15, 23, 42, 0.8); 
+  border-radius: 12px; 
+  border: 1px solid #334155; 
+  box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.7); 
 }
 
-/* Button & Warning Styles */
-.controls {
-  margin: 15px 0;
+/* FIX: Ensure SVG has exactly 0 padding and matches the wrapper's inner size */
+.svg-overlay { 
+  position: absolute; 
+  top: 0; 
+  left: 0; 
+  width: 100%; 
+  height: 100%; 
+  pointer-events: none; 
+  z-index: 10; 
 }
 
-.check-btn {
-  background-color: #007bff;
-  color: white;
-  border: none;
-  padding: 10px 20px;
-  border-radius: 5px;
-  cursor: pointer;
-  font-weight: bold;
-  font-family: inherit;
+.breadboard.blueprint { 
+  background-color: #e2e8f0; 
+  padding: 25px 40px; 
+  border-radius: 8px; 
+  box-shadow: inset 0 0 20px rgba(0,0,0,0.1); 
+  display: flex; 
+  flex-direction: column; 
+  gap: 12px; 
 }
 
-.check-btn:hover {
-  background-color: #0056b3;
+.power-rails, .terminal-strip { display: flex; flex-direction: column; gap: 8px; }
+.rail, .terminal-row { display: flex; gap: 8px; }
+
+.hole { 
+  width: 14px; 
+  height: 14px; 
+  background-color: #334155; 
+  border-radius: 2px; 
+  box-shadow: inset 0 3px 6px rgba(0,0,0,0.9); 
+  cursor: pointer; 
+  transition: transform 0.1s; 
 }
 
-.danger-text {
-  color: #ff4444;
-  font-weight: bold;
-  font-size: 1.1em;
-  background-color: rgba(255,0,0,0.1);
-  padding: 5px;
-  border-radius: 4px;
+.hole:hover { background-color: #64748b; transform: scale(1.2); }
+.hole.active { background-color: #fde047; box-shadow: 0 0 10px #fde047; }
+
+.power-rails { position: relative; }
+.rail.positive { border-top: 3px solid #ef4444; padding-top: 5px; }
+.rail.negative { border-top: 3px solid #3b82f6; padding-top: 5px; }
+
+.ravine { 
+  height: 18px; 
+  background-color: #cbd5e1; 
+  border-radius: 4px; 
+  box-shadow: inset 0 3px 6px rgba(0,0,0,0.15); 
+  margin: 5px 0; 
 }
 
-.safe-text {
-  color: #00ffcc;
-  font-weight: bold;
-}
-
-.cont {
-  display: flex;
-  gap: 20px;
-}
-
-.smsg-board, .status-bar {
-  flex: 1;
+.divider { 
+  height: 2px; 
+  background-color: #94a3b8; 
+  margin: 2px 0; 
+  opacity: 0.5; 
 }

@@ -4,51 +4,50 @@ import './App.css';
 const Breadboard = () => {
   const columns = 30;
   const range = (n) => Array.from({ length: n }, (_, i) => i + 1);
-
   const topRows = ['A', 'B', 'C', 'D', 'E'];
   const botRows = ['F', 'G', 'H', 'I', 'J'];
 
-  // State variables
   const [firstClick, setFirstClick] = useState(null);
-  const [wires, setWires] = useState([]);
-  const [resistors, setResistors] = useState([]); 
-  const [wireCoords, setWireCoords] = useState([]);
-  const [serverMessage, setServerMessage] = useState("Waiting for connection...");
-  const [shortWarning, setShortWarning] = useState(null);
-  const [toolMode, setToolMode] = useState('wire'); // 'wire', 'resistor', or 'multimeter'
-  
+  const [elements, setElements] = useState([]);
+  const [drawnElements, setDrawnElements] = useState([]);
+  const [message, setMessage] = useState("System Ready.");
+  const [tool, setTool] = useState('wire');
+
   const boardRef = useRef(null);
+  const API_URL = 'http://localhost:8080/api';
+
+  useEffect(() => {
+    fetch(`${API_URL}/clear`, { method: 'POST' }).catch(() => {});
+  }, []);
 
   useEffect(() => {
     if (!boardRef.current) return;
     const boardRect = boardRef.current.getBoundingClientRect();
 
-    const coords = wires.map(wire => {
-      const startEl = document.getElementById(wire.start);
-      const endEl = document.getElementById(wire.end);
-      
-      if (startEl && endEl) {
-        const startRect = startEl.getBoundingClientRect();
-        const endRect = endEl.getBoundingClientRect();
-        
-        return {
-          x1: startRect.left - boardRect.left + startRect.width / 2,
-          y1: startRect.top - boardRect.top + startRect.height / 2,
-          x2: endRect.left - boardRect.left + endRect.width / 2,
-          y2: endRect.top - boardRect.top + endRect.height / 2,
-        };
-      }
-      return null;
+    const coords = elements.map(el => {
+      const startEl = document.getElementById(el.start);
+      const endEl = document.getElementById(el.end);
+      if (!startEl || !endEl) return null;
+
+      const sRect = startEl.getBoundingClientRect();
+      const eRect = endEl.getBoundingClientRect();
+
+      return {
+        ...el,
+        x1: sRect.left - boardRect.left + sRect.width / 2,
+        y1: sRect.top - boardRect.top + sRect.height / 2,
+        x2: eRect.left - boardRect.left + eRect.width / 2,
+        y2: eRect.top - boardRect.top + eRect.height / 2,
+      };
     }).filter(Boolean);
 
-    setWireCoords(coords);
-  }, [wires]); 
+    setDrawnElements(coords);
+  }, [elements]);
 
   const handleHoleClick = async (holeId, nodeId) => {
     if (!firstClick) {
       setFirstClick({ holeId, nodeId });
-      setServerMessage(`Selected ${holeId}. Now click another hole.`);
-      setShortWarning(null); 
+      setMessage(`Selected ${holeId}.`);
       return;
     }
 
@@ -56,223 +55,157 @@ const Breadboard = () => {
     const nodeB = nodeId;
     const startHole = firstClick.holeId;
 
-    if (firstClick.holeId === holeId) {
+    if (startHole === holeId) {
       setFirstClick(null);
-      setServerMessage("Canceled.");
+      setMessage("Canceled.");
       return;
     }
 
     setFirstClick(null);
 
     try {
-      if (toolMode === 'wire') {
-        setWires([...wires, { start: startHole, end: holeId }]);
-        const response = await fetch('http://localhost:3000/api/wire', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ nodeA, nodeB })
-        });
-        const data = await response.json();
-        setServerMessage(`Backend DSU: ${data.message}`);
-      } 
-      else if (toolMode === 'resistor') {
-        setResistors([...resistors, { start: startHole, end: holeId, resistance: 1000 }]);
-        const response = await fetch('http://localhost:3000/api/resistor', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ nodeA, nodeB, resistance: 1000 })
-        });
-        const data = await response.json();
-        setServerMessage(`Backend Graph: ${data.message}`);
-      }
-      else if (toolMode === 'multimeter') {
-        // DAA: Trigger Dijkstra's Algorithm API
-        const response = await fetch(`http://localhost:3000/api/multimeter?nodeA=${nodeA}&nodeB=${nodeB}`);
-        const data = await response.json();
+      if (tool === 'wire' || tool === 'resistor') {
+        const resVal = tool === 'resistor' ? 1000 : 0;
+        const newEl = { type: tool, start: startHole, end: holeId, nodeA, nodeB, resistance: resVal };
         
-        if (data.resistance === null || data.message.includes("Open Circuit")) {
-            setShortWarning(`${data.message}`);
-        } else {
-            setShortWarning(`${data.message}`);
-        }
-        setServerMessage(`Probed ${startHole} and ${holeId}`);
+        setElements(prev => [...prev, newEl]);
+
+        const response = await fetch(`${API_URL}/${tool}`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ nodeA, nodeB, resistance: resVal })
+        });
+        const data = await response.json();
+        setMessage(data.message);
+      } 
+      else if (tool === 'multimeter') {
+        const response = await fetch(`${API_URL}/multimeter?nodeA=${nodeA}&nodeB=${nodeB}`);
+        const data = await response.json();
+        setMessage(data.message);
       }
     } catch (err) {
-      setServerMessage("Error: Backend offline.");
-      console.error(err);
+      setMessage("Backend Error.");
     }
   };
 
-  const checkShortCircuit = async () => {
+  const handleBoardClick = (e) => {
+    if (e.target.classList.contains('hole')) {
+      handleHoleClick(e.target.id, e.target.getAttribute('data-nodeid'));
+    }
+  };
+
+  const checkShort = async () => {
     try {
-      const response = await fetch('http://localhost:3000/api/check-short');
+      const response = await fetch(`${API_URL}/check-short`);
       const data = await response.json();
-      
-      if (data.isShorted) {
-        setShortWarning(`DANGER: Short Circuit! BFS Path: ${data.path.join(' ➔ ')}`);
-      } else {
-        setShortWarning("Circuit is safe. No shorts detected.");
-      }
+      setMessage(data.isShorted ? `DANGER: Short Circuit! Path: ${data.path.join(' -> ')}` : "Circuit is safe.");
     } catch (err) {
-      console.error(err);
-      setShortWarning("Error: Could not connect to backend.");
+      setMessage("Backend Error.");
     }
   };
 
-  const clearBoard = async () => {
-    setWires([]);
-    setResistors([]); 
-    setWireCoords([]);
-    setFirstClick(null);
-    setShortWarning(null);
-    setServerMessage("Board wiped clean.");
+  const undo = async () => {
+    if (elements.length === 0) return;
+    const newElements = elements.slice(0, -1);
+    setElements(newElements);
 
     try {
-      await fetch('http://localhost:3000/api/clear', { method: 'POST' });
+      const response = await fetch(`${API_URL}/rebuild`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ actions: newElements })
+      });
+      const data = await response.json();
+      setMessage(`Undo: ${data.message}`);
     } catch (err) {
-      console.error("Failed to clear backend:", err);
+      setMessage("Backend Error.");
     }
+  };
+
+  const clear = async () => {
+    setElements([]);
+    setFirstClick(null);
+    setMessage("Board cleared.");
+    try { await fetch(`${API_URL}/clear`, { method: 'POST' }); } catch (err) {}
   };
 
   return (
-    <div className="breadboard-container">
-      <h2>Breadboard Simulator</h2>
-      
-      <div className = "cont">
-        <div className= "smsg-board">
-        <div className = "smsg">
-          <p>{serverMessage}</p>
-          {shortWarning && <p className={shortWarning.includes('DANGER') ? 'danger-text' : 'safe-text'} style={{color: shortWarning.includes('🎛️') ? '#ffaa00' : ''}}>{shortWarning}</p>}
+    <div className="app-container">
+      <div className="sidebar">
+        <h2>Breadboard CAD</h2>
+        <div className="sys-status">
+          <p className="log-text">{message}</p>
         </div>
 
+        <div className="toolbox">
+          <h3>Tools</h3>
+          <button className={`tool-btn ${tool === 'wire' ? 'active-wire' : ''}`} onClick={() => { setTool('wire'); setFirstClick(null); }}>🔌 Draw Wire</button>
+          <button className={`tool-btn ${tool === 'resistor' ? 'active-res' : ''}`} onClick={() => { setTool('resistor'); setFirstClick(null); }}>⚡ Place Resistor</button>
+          <button className={`tool-btn ${tool === 'multimeter' ? 'active-multi' : ''}`} onClick={() => { setTool('multimeter'); setFirstClick(null); }}>🎛️ Multimeter</button>
+        </div>
 
+        <div className="actions">
+          <h3>Diagnostics</h3>
+          <button className="action-btn primary" onClick={checkShort}>Run BFS Check</button>
+          <button className="action-btn secondary" onClick={undo}>↩ Undo Last</button>
+          <button className="action-btn danger" onClick={clear}>🗑️ Clear Board</button>
+        </div>
+      </div>
+
+      <div className="workspace">
         <div className="board-wrapper" ref={boardRef}>
-        
-        <svg className="svg-overlay">
-          {wireCoords.map((coord, idx) => (
-            <line key={`wire-${idx}`} x1={coord.x1} y1={coord.y1} x2={coord.x2} y2={coord.y2} stroke="#00ffcc" strokeWidth="4" strokeLinecap="round" />
-          ))}
-
-          {resistors.map((resistor, idx) => {
-            const startEl = document.getElementById(resistor.start);
-            const endEl = document.getElementById(resistor.end);
-            if (!startEl || !endEl || !boardRef.current) return null;
-            
-            const boardRect = boardRef.current.getBoundingClientRect();
-            const startRect = startEl.getBoundingClientRect();
-            const endRect = endEl.getBoundingClientRect();
-            
-            const x1 = startRect.left - boardRect.left + startRect.width / 2;
-            const y1 = startRect.top - boardRect.top + startRect.height / 2;
-            const x2 = endRect.left - boardRect.left + endRect.width / 2;
-            const y2 = endRect.top - boardRect.top + endRect.height / 2;
-
-            return (
-              <g key={`resistor-${idx}`}>
-                <line x1={x1} y1={y1} x2={x2} y2={y2} stroke="#333" strokeWidth="6" strokeLinecap="round" />
-                <line x1={x1} y1={y1} x2={x2} y2={y2} stroke="#ffaa00" strokeWidth="4" strokeLinecap="round" strokeDasharray="4 4" />
-              </g>
-            );
-          })}
-        </svg>
-
-        <div className="breadboard">
-          <div className="power-rails">
-            <div className="rail positive">
-              {range(columns).map(col => (
-                <div id={`top-pos-${col}`} key={`top-pos-${col}`} className={`hole ${firstClick?.holeId === `top-pos-${col}` ? 'active' : ''}`} onClick={() => handleHoleClick(`top-pos-${col}`, 'node-power-top-pos')}></div>
-              ))}
-            </div>
-            <div className="rail negative">
-              {range(columns).map(col => (
-                <div id={`top-neg-${col}`} key={`top-neg-${col}`} className={`hole ${firstClick?.holeId === `top-neg-${col}` ? 'active' : ''}`} onClick={() => handleHoleClick(`top-neg-${col}`, 'node-power-top-neg')}></div>
-              ))}
-            </div>
-          </div>
-
-          <div className="divider"></div>
-
-          <div className="terminal-strip">
-            {topRows.map(row => (
-              <div key={`row-${row}`} className="terminal-row">
-                {range(columns).map(col => (
-                  <div id={`${row}${col}`} key={`${row}${col}`} className={`hole ${firstClick?.holeId === `${row}${col}` ? 'active' : ''}`} onClick={() => handleHoleClick(`${row}${col}`, `node-term-top-${col}`)}></div>
-                ))}
-              </div>
+          <svg className="svg-overlay">
+            {drawnElements.map((el, idx) => (
+              el.type === 'wire' ? (
+                <line key={idx} x1={el.x1} y1={el.y1} x2={el.x2} y2={el.y2} stroke="#00d2ff" strokeWidth="4" strokeLinecap="round" />
+              ) : (
+                <g key={idx}>
+                  <line x1={el.x1} y1={el.y1} x2={el.x2} y2={el.y2} stroke="#1a2b3c" strokeWidth="6" strokeLinecap="round" />
+                  <line x1={el.x1} y1={el.y1} x2={el.x2} y2={el.y2} stroke="#ffea00" strokeWidth="4" strokeLinecap="round" strokeDasharray="6 4" />
+                </g>
+              )
             ))}
-          </div>
+          </svg>
 
-          <div className="ravine"></div>
-
-          <div className="terminal-strip">
-            {botRows.map(row => (
-              <div key={`row-${row}`} className="terminal-row">
-                {range(columns).map(col => (
-                  <div id={`${row}${col}`} key={`${row}${col}`} className={`hole ${firstClick?.holeId === `${row}${col}` ? 'active' : ''}`} onClick={() => handleHoleClick(`${row}${col}`, `node-term-bot-${col}`)}></div>
-                ))}
+          <div className="breadboard blueprint" onClick={handleBoardClick}>
+            <div className="power-rails">
+              <div className="rail positive">
+                {range(columns).map(c => <div id={`top-pos-${c}`} data-nodeid="node-power-top-pos" key={`top-pos-${c}`} className={`hole ${firstClick?.holeId === `top-pos-${c}` ? 'active' : ''}`}></div>)}
               </div>
-            ))}
-          </div>
-
-          <div className="divider"></div>
-
-          <div className="power-rails">
-            <div className="rail negative">
-              {range(columns).map(col => (
-                <div id={`bot-neg-${col}`} key={`bot-neg-${col}`} className={`hole ${firstClick?.holeId === `bot-neg-${col}` ? 'active' : ''}`} onClick={() => handleHoleClick(`bot-neg-${col}`, 'node-power-bot-neg')}></div>
+              <div className="rail negative">
+                {range(columns).map(c => <div id={`top-neg-${c}`} data-nodeid="node-power-top-neg" key={`top-neg-${c}`} className={`hole ${firstClick?.holeId === `top-neg-${c}` ? 'active' : ''}`}></div>)}
+              </div>
+            </div>
+            <div className="divider"></div>
+            
+            <div className="terminal-strip">
+              {topRows.map(r => (
+                <div key={`row-${r}`} className="terminal-row">
+                  {range(columns).map(c => <div id={`${r}${c}`} data-nodeid={`node-term-top-${c}`} key={`${r}${c}`} className={`hole ${firstClick?.holeId === `${r}${c}` ? 'active' : ''}`}></div>)}
+                </div>
               ))}
             </div>
-            <div className="rail positive">
-              {range(columns).map(col => (
-                <div id={`bot-pos-${col}`} key={`bot-pos-${col}`} className={`hole ${firstClick?.holeId === `bot-pos-${col}` ? 'active' : ''}`} onClick={() => handleHoleClick(`bot-pos-${col}`, 'node-power-bot-pos')}></div>
+            <div className="ravine"></div>
+            <div className="terminal-strip">
+              {botRows.map(r => (
+                <div key={`row-${r}`} className="terminal-row">
+                  {range(columns).map(c => <div id={`${r}${c}`} data-nodeid={`node-term-bot-${c}`} key={`${r}${c}`} className={`hole ${firstClick?.holeId === `${r}${c}` ? 'active' : ''}`}></div>)}
+                </div>
               ))}
+            </div>
+
+            <div className="divider"></div>
+            <div className="power-rails">
+              <div className="rail negative">
+                {range(columns).map(c => <div id={`bot-neg-${c}`} data-nodeid="node-power-bot-neg" key={`bot-neg-${c}`} className={`hole ${firstClick?.holeId === `bot-neg-${c}` ? 'active' : ''}`}></div>)}
+              </div>
+              <div className="rail positive">
+                {range(columns).map(c => <div id={`bot-pos-${c}`} data-nodeid="node-power-bot-pos" key={`bot-pos-${c}`} className={`hole ${firstClick?.holeId === `bot-pos-${c}` ? 'active' : ''}`}></div>)}
+              </div>
             </div>
           </div>
         </div>
       </div>
-        </div>
-        
-        <div className="status-bar">
-          
-          {/* UPDATED TOOLBAR */}
-          <div className="toolbar" style={{ margin: '15px 0', display: 'flex',flexDirection: 'column', gap: '10px', justifyContent: 'center' }}>
-            <button 
-              onClick={() => { setToolMode('wire'); setFirstClick(null); }}
-              style={{ backgroundColor: toolMode === 'wire' ? '#444' : '#444', color: toolMode === 'wire' ? '#fff' : '#fff', padding: '8px 16px', border: 'none', borderRadius: '4px', cursor: 'pointer', fontWeight: 'bold' }}
-            >
-              Draw Wire
-            </button>
-            <button 
-              onClick={() => { setToolMode('resistor'); setFirstClick(null); }}
-              style={{ backgroundColor: toolMode === 'resistor' ? '#ffaa00' : '#444', color: toolMode === 'resistor' ? '#000' : '#fff', padding: '8px 16px', border: 'none', borderRadius: '4px', cursor: 'pointer', fontWeight: 'bold' }}
-            >
-              Place Resistor
-            </button>
-            <button 
-              onClick={() => { setToolMode('multimeter'); setFirstClick(null); }}
-              style={{ backgroundColor: toolMode === 'multimeter' ? '#ff44ff' : '#444', color: toolMode === 'multimeter' ? '#000' : '#fff', padding: '8px 16px', border: 'none', borderRadius: '4px', cursor: 'pointer', fontWeight: 'bold' }}
-            >
-              Multimeter (Dijkstra)
-            </button>
-          </div>
-
-          <div className="controls">
-            <button onClick={checkShortCircuit} className="check-btn">Run BFS Short Check</button>
-            <button onClick={clearBoard} className="check-btn" style={{marginLeft: '10px', backgroundColor: '#ff4444'}}>Clear Board</button>
-          </div>
-
-          <div className="wire-list">
-            {wires.map((wire, idx) => (
-              <span key={`w-badge-${idx}`} className="wire-badge" style={{borderColor: '#00ffcc'}}>{wire.start} ↔ {wire.end}</span>
-            ))}
-            {resistors.map((res, idx) => (
-              <span key={`r-badge-${idx}`} className="wire-badge" style={{borderColor: '#ffaa00'}}>{res.start} 〰 {res.end} ({res.resistance}Ω)</span>
-            ))}
-          </div>
-        </div>
-      </div>
-      
-      
     </div>
   );
 };
